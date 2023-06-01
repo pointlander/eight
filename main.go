@@ -41,25 +41,22 @@ type Points map[string]Point
 func picture() {
 	webcamera := NewV4LCamera()
 	go webcamera.Start("/dev/video0")
-	j := 0
 	var wc []*image.Paletted
-	for j < 32 {
-		select {
-		case img := <-webcamera.Images:
-			opts := gif.Options{
-				NumColors: 256,
-				Drawer:    draw.FloydSteinberg,
-			}
-			bounds := img.Frame.Bounds()
-			paletted := image.NewPaletted(bounds, palette.Plan9[:opts.NumColors])
-			if opts.Quantizer != nil {
-				paletted.Palette = opts.Quantizer.Quantize(make(color.Palette, 0, opts.NumColors), img.Frame)
-			}
-			opts.Drawer.Draw(paletted, bounds, img.Frame, image.Point{})
-			wc = append(wc, paletted)
-			fmt.Println("left", j)
-			j++
+	for j := 0; j < 32; j++ {
+		img := <-webcamera.Images
+
+		opts := gif.Options{
+			NumColors: 256,
+			Drawer:    draw.FloydSteinberg,
 		}
+		bounds := img.Frame.Bounds()
+		paletted := image.NewPaletted(bounds, palette.Plan9[:opts.NumColors])
+		if opts.Quantizer != nil {
+			paletted.Palette = opts.Quantizer.Quantize(make(color.Palette, 0, opts.NumColors), img.Frame)
+		}
+		opts.Drawer.Draw(paletted, bounds, img.Frame, image.Point{})
+		wc = append(wc, paletted)
+		fmt.Println("left", j)
 	}
 	webcamera.Stream = false
 	process := func(name string, images []*image.Paletted) {
