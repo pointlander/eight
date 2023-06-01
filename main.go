@@ -5,6 +5,8 @@
 package main
 
 import (
+	"encoding/gob"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -26,6 +28,15 @@ type Frame struct {
 	Frame image.Image
 	DCT   [][]float64
 }
+
+// Point is a point
+type Point struct {
+	Name  string
+	Point []float64
+}
+
+// Points is a set of points
+type Points map[string]Point
 
 func picture() {
 	webcamera := NewV4LCamera()
@@ -65,6 +76,57 @@ func picture() {
 	process("webcamera.gif", wc)
 }
 
+var (
+	// Learn a point
+	FlagLearn = flag.String("learn", "", "learn a point")
+	// Picture take a picture
+	FlagPicture = flag.Bool("picture", false, "take a picture")
+)
+
 func main() {
-	picture()
+	flag.Parse()
+
+	if *FlagPicture {
+		picture()
+		return
+	}
+	if *FlagLearn != "" {
+		input, err := os.Open("points.gob")
+		points := make(Points)
+		if err == nil {
+			decoder := gob.NewDecoder(input)
+			err = decoder.Decode(&points)
+			if err != nil {
+				panic(err)
+			}
+		}
+		input.Close()
+		webcamera := NewV4LCamera()
+		go webcamera.Start("/dev/video0")
+		image := <-webcamera.Images
+		webcamera.Stream = false
+		values, index := make([]float64, 8*8), 0
+		for i := 0; i < 8; i++ {
+			for j := 0; j < 8; j++ {
+				values[index] = image.DCT[i][j]
+				index++
+			}
+		}
+		points[*FlagLearn] = Point{
+			Name:  *FlagLearn,
+			Point: values,
+		}
+
+		output, err := os.Create("points.gob")
+		if err != nil {
+			panic(err)
+		}
+		defer output.Close()
+		encoder := gob.NewEncoder(output)
+		err = encoder.Encode(points)
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
 }
