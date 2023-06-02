@@ -13,7 +13,9 @@ import (
 	"image/color/palette"
 	"image/draw"
 	"image/gif"
+	"math"
 	"os"
+	"time"
 )
 
 const (
@@ -21,6 +23,10 @@ const (
 	Width = 24
 	// Height is the height of the fft
 	Height = 24
+	// EmbeddingWidth is the width of the embedding
+	EmbeddingWidth = 24
+	// EmbeddingHeight is the height of the embedding
+	EmbeddingHeight = 24
 )
 
 // Frame is a video frame
@@ -74,9 +80,11 @@ func picture() {
 }
 
 var (
-	// Learn a point
+	// FlagLearn a point
 	FlagLearn = flag.String("learn", "", "learn a point")
-	// Picture take a picture
+	// FlagInfer
+	FlagInfer = flag.Bool("infer", false, "inference mode")
+	// FlagPicture take a picture
 	FlagPicture = flag.Bool("picture", false, "take a picture")
 )
 
@@ -88,6 +96,8 @@ func main() {
 		return
 	}
 	if *FlagLearn != "" {
+		fmt.Println("wait 5 seconds")
+		time.Sleep(5 * time.Second)
 		input, err := os.Open("points.gob")
 		points := make(Points)
 		if err == nil {
@@ -102,9 +112,9 @@ func main() {
 		go webcamera.Start("/dev/video0")
 		image := <-webcamera.Images
 		webcamera.Stream = false
-		values, index := make([]float64, 8*8), 0
-		for i := 0; i < 8; i++ {
-			for j := 0; j < 8; j++ {
+		values, index := make([]float64, EmbeddingHeight*EmbeddingWidth), 0
+		for i := 0; i < EmbeddingHeight; i++ {
+			for j := 0; j < EmbeddingWidth; j++ {
 				values[index] = image.DCT[i][j]
 				index++
 			}
@@ -125,5 +135,59 @@ func main() {
 			panic(err)
 		}
 		return
+	}
+	if *FlagInfer {
+		input, err := os.Open("points.gob")
+		points := make(Points)
+		if err != nil {
+			panic(err)
+		}
+		decoder := gob.NewDecoder(input)
+		err = decoder.Decode(&points)
+		if err != nil {
+			panic(err)
+		}
+		defer input.Close()
+
+		/*for i := range points {
+			length := 0.0
+			for _, value := range points[i].Point {
+				length += value * value
+			}
+			length = math.Sqrt(length)
+			for j, value := range points[i].Point {
+				points[i].Point[j] = value / length
+			}
+		}*/
+
+		webcamera := NewV4LCamera()
+		go webcamera.Start("/dev/video0")
+		for {
+			image := <-webcamera.Images
+			vector, index, length := make([]float64, EmbeddingHeight*EmbeddingWidth), 0, 0.0
+			for i := 0; i < EmbeddingHeight; i++ {
+				for j := 0; j < EmbeddingWidth; j++ {
+					value := image.DCT[i][j]
+					vector[index] = value
+					length += value * value
+					index++
+				}
+			}
+			length = math.Sqrt(length)
+
+			name, min := "", math.MaxFloat64
+			for _, point := range points {
+				sum := 0.0
+				for key, value := range vector {
+					diff := point.Point[key] - value
+					sum += diff * diff
+				}
+				if sum < min {
+					min, name = sum, point.Name
+				}
+			}
+			fmt.Println("\t\t\t\t\t"+name, min)
+		}
+		//webcamera.Stream = false
 	}
 }
