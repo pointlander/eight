@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"math/cmplx"
 	"runtime"
 	"sort"
 	"time"
@@ -164,15 +163,18 @@ func (vc *V4LCamera) Start(device string) {
 				pixels[j] = pix
 			}
 			output := fft.FFT2Real(pixels)
-			for j, pix := range pixels {
+			out := make([][]complex128, height)
+			for j := range output {
+				pix := make([]complex128, width)
 				for i := range pix {
-					pix[i] = cmplx.Abs(output[j][i]) / float64(width*height)
+					pix[i] = output[j][i] / complex(float64(width*height), 0)
 				}
+				out[j] = pix
 			}
 			select {
 			case vc.Images <- Frame{
 				Frame: yuyv,
-				DCT:   pixels,
+				DCT:   out,
 			}:
 			default:
 				fmt.Println("drop", device)

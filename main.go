@@ -14,6 +14,7 @@ import (
 	"image/draw"
 	"image/gif"
 	"math"
+	"math/cmplx"
 	"os"
 	"time"
 )
@@ -32,13 +33,13 @@ const (
 // Frame is a video frame
 type Frame struct {
 	Frame image.Image
-	DCT   [][]float64
+	DCT   [][]complex128
 }
 
 // Point is a point
 type Point struct {
 	Name  string
-	Point []float64
+	Point []complex128
 }
 
 // Points is a set of points
@@ -112,7 +113,7 @@ func main() {
 		go webcamera.Start("/dev/video0")
 		image := <-webcamera.Images
 		webcamera.Stream = false
-		values, index := make([]float64, EmbeddingHeight*EmbeddingWidth), 0
+		values, index := make([]complex128, EmbeddingHeight*EmbeddingWidth), 0
 		for i := 0; i < EmbeddingHeight; i++ {
 			for j := 0; j < EmbeddingWidth; j++ {
 				values[index] = image.DCT[i][j]
@@ -149,37 +150,24 @@ func main() {
 		}
 		defer input.Close()
 
-		/*for i := range points {
-			length := 0.0
-			for _, value := range points[i].Point {
-				length += value * value
-			}
-			length = math.Sqrt(length)
-			for j, value := range points[i].Point {
-				points[i].Point[j] = value / length
-			}
-		}*/
-
 		webcamera := NewV4LCamera()
 		go webcamera.Start("/dev/video0")
 		for {
 			image := <-webcamera.Images
-			vector, index, length := make([]float64, EmbeddingHeight*EmbeddingWidth), 0, 0.0
+			vector, index := make([]complex128, EmbeddingHeight*EmbeddingWidth), 0
 			for i := 0; i < EmbeddingHeight; i++ {
 				for j := 0; j < EmbeddingWidth; j++ {
 					value := image.DCT[i][j]
 					vector[index] = value
-					length += value * value
 					index++
 				}
 			}
-			length = math.Sqrt(length)
 
 			name, min := "", math.MaxFloat64
 			for _, point := range points {
 				sum := 0.0
 				for key, value := range vector {
-					diff := point.Point[key] - value
+					diff := cmplx.Abs(point.Point[key]) - cmplx.Abs(value)
 					sum += diff * diff
 				}
 				if sum < min {
@@ -188,6 +176,5 @@ func main() {
 			}
 			fmt.Println("\t\t\t\t\t"+name, min)
 		}
-		//webcamera.Stream = false
 	}
 }
