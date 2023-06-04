@@ -37,7 +37,7 @@ const (
 
 // Frame is a video frame
 type Frame struct {
-	Frame image.Image
+	Frame *image.YCbCr
 	DCT   [][]complex128
 }
 
@@ -49,6 +49,14 @@ type Point struct {
 
 // Points is a set of points
 type Points map[string]Point
+
+// Color is a color
+type Color struct {
+	R, G, B, A uint32
+}
+
+// Index is an index of colors to image sides
+type Index map[Color][4]bool
 
 func picture() {
 	webcamera := NewV4LCamera()
@@ -80,16 +88,90 @@ func picture() {
 		segmenter.SegmentHMSF(sigma, minWeight)
 		result := segmenter.GetResultImage()
 
+		index, bounds := make(Index), result.Bounds()
+		for i := 0; i < bounds.Max.X; i++ {
+			r, g, b, a := result.At(i, 0).RGBA()
+			color := Color{
+				R: r,
+				G: g,
+				B: b,
+				A: a,
+			}
+			sides := index[color]
+			sides[0] = true
+			index[color] = sides
+		}
+		for i := 0; i < bounds.Max.Y; i++ {
+			r, g, b, a := result.At(bounds.Max.X-1, i).RGBA()
+			color := Color{
+				R: r,
+				G: g,
+				B: b,
+				A: a,
+			}
+			sides := index[color]
+			sides[1] = true
+			index[color] = sides
+		}
+		for i := 0; i < bounds.Max.X; i++ {
+			r, g, b, a := result.At(i, bounds.Max.Y-1).RGBA()
+			color := Color{
+				R: r,
+				G: g,
+				B: b,
+				A: a,
+			}
+			sides := index[color]
+			sides[2] = true
+			index[color] = sides
+		}
+		for i := 0; i < bounds.Max.Y; i++ {
+			r, g, b, a := result.At(0, i).RGBA()
+			color := Color{
+				R: r,
+				G: g,
+				B: b,
+				A: a,
+			}
+			sides := index[color]
+			sides[3] = true
+			index[color] = sides
+		}
+
+		cp := image.NewRGBA(img.Frame.Bounds())
+		draw.Draw(cp, cp.Bounds(), img.Frame, img.Frame.Bounds().Min, draw.Src)
+		for i := 0; i < bounds.Max.X; i++ {
+			for j := 0; j < bounds.Max.Y; j++ {
+				r, g, b, a := result.At(i, j).RGBA()
+				c := Color{
+					R: r,
+					G: g,
+					B: b,
+					A: a,
+				}
+				sides := index[c]
+				del := false
+				for k := 0; k < len(sides); k++ {
+					if sides[k] && sides[(k+1)%len(sides)] {
+						del = true
+						break
+					}
+				}
+				if del {
+					cp.SetRGBA(i, j, color.RGBA{})
+				}
+			}
+		}
 		opts = gif.Options{
 			NumColors: 256,
 			Drawer:    draw.FloydSteinberg,
 		}
-		bounds = img.Frame.Bounds()
+		bounds = cp.Bounds()
 		paletted = image.NewPaletted(bounds, palette.Plan9[:opts.NumColors])
 		if opts.Quantizer != nil {
-			paletted.Palette = opts.Quantizer.Quantize(make(color.Palette, 0, opts.NumColors), result)
+			paletted.Palette = opts.Quantizer.Quantize(make(color.Palette, 0, opts.NumColors), cp)
 		}
-		opts.Drawer.Draw(paletted, bounds, result, image.Point{})
+		opts.Drawer.Draw(paletted, bounds, cp, image.Point{})
 		seg = append(seg, paletted)
 		fmt.Println("left", j)
 	}
