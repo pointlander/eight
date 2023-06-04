@@ -18,6 +18,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/pointlander/image-segmentation/graph"
+	"github.com/pointlander/image-segmentation/segmentation"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 )
@@ -51,7 +53,11 @@ type Points map[string]Point
 func picture() {
 	webcamera := NewV4LCamera()
 	go webcamera.Start("/dev/video0")
-	var wc []*image.Paletted
+	var wc, seg []*image.Paletted
+	// 0 to 1
+	sigma := .8
+	graphType := graph.KINGSGRAPH
+	weightfn := segmentation.NNWeight
 	for j := 0; j < 32; j++ {
 		img := <-webcamera.Images
 
@@ -66,6 +72,25 @@ func picture() {
 		}
 		opts.Drawer.Draw(paletted, bounds, img.Frame, image.Point{})
 		wc = append(wc, paletted)
+
+		segmenter := segmentation.New(img.Frame, graphType, weightfn)
+		segmenter.SetRandomColors(true)
+		// 0 to 15
+		minWeight := 5.0
+		segmenter.SegmentHMSF(sigma, minWeight)
+		result := segmenter.GetResultImage()
+
+		opts = gif.Options{
+			NumColors: 256,
+			Drawer:    draw.FloydSteinberg,
+		}
+		bounds = img.Frame.Bounds()
+		paletted = image.NewPaletted(bounds, palette.Plan9[:opts.NumColors])
+		if opts.Quantizer != nil {
+			paletted.Palette = opts.Quantizer.Quantize(make(color.Palette, 0, opts.NumColors), result)
+		}
+		opts.Drawer.Draw(paletted, bounds, result, image.Point{})
+		seg = append(seg, paletted)
 		fmt.Println("left", j)
 	}
 	webcamera.Stream = false
@@ -81,6 +106,7 @@ func picture() {
 		gif.EncodeAll(f, animation)
 	}
 	process("webcamera.gif", wc)
+	process("segmented.gif", seg)
 }
 
 var (
