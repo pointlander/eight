@@ -38,8 +38,8 @@ type Frame struct {
 
 // Point is a point
 type Point struct {
-	Name  string
-	Point []complex128
+	Name   string
+	Points [][]complex128
 }
 
 // Points is a set of points
@@ -120,10 +120,11 @@ func main() {
 				index++
 			}
 		}
-		points[*FlagLearn] = Point{
-			Name:  *FlagLearn,
-			Point: values,
-		}
+
+		entry := points[*FlagLearn]
+		entry.Name = *FlagLearn
+		entry.Points = append(entry.Points, values)
+		points[*FlagLearn] = entry
 
 		output, err := os.Create("points.gob")
 		if err != nil {
@@ -164,14 +165,16 @@ func main() {
 			}
 
 			name, min := "", math.MaxFloat64
-			for _, point := range points {
-				sum := 0.0
-				for key, value := range vector {
-					diff := cmplx.Abs(point.Point[key]) - cmplx.Abs(value)
-					sum += diff * diff
-				}
-				if sum < min {
-					min, name = sum, point.Name
+			for _, entry := range points {
+				for _, point := range entry.Points {
+					sum := 0.0
+					for key, value := range vector {
+						diff := cmplx.Abs(point[key]) - cmplx.Abs(value)
+						sum += diff * diff
+					}
+					if sum < min {
+						min, name = sum, entry.Name
+					}
 				}
 			}
 			fmt.Println("\t\t\t\t\t"+name, min)
