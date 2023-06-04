@@ -17,6 +17,9 @@ import (
 	"math/cmplx"
 	"os"
 	"time"
+
+	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat"
 )
 
 const (
@@ -177,7 +180,35 @@ func main() {
 					}
 				}
 			}
-			fmt.Println("\t\t\t\t\t"+name, min)
+			fmt.Printf("\t\t\t\t\t %s %f", name, min)
+
+			entry := points[name]
+			if length := len(entry.Points); length > 2 {
+				width := EmbeddingHeight * EmbeddingWidth
+				length += 1
+				data := make([]float64, length*width)
+				for _, points := range entry.Points {
+					for _, point := range points {
+						data = append(data, cmplx.Phase(point))
+					}
+				}
+				for _, point := range vector {
+					data = append(data, cmplx.Phase(point))
+				}
+				ranks := mat.NewDense(length, width, data)
+				var pc stat.PC
+				ok := pc.PrincipalComponents(ranks, nil)
+				if !ok {
+					panic("PrincipalComponents failed")
+				}
+				k := 2
+				var proj mat.Dense
+				var vec mat.Dense
+				pc.VectorsTo(&vec)
+				proj.Mul(ranks, vec.Slice(0, width, 0, k))
+
+				fmt.Printf("%f %f\n", proj.At(length-1, 0), proj.At(length-1, 1))
+			}
 		}
 	}
 }
