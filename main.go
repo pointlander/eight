@@ -95,7 +95,7 @@ func Segment(img *image.YCbCr) image.Image {
 		sides[1] = true
 		index[color] = sides
 	}
-	{
+	/*{
 		r, g, b, a := result.At(bounds.Max.X/2, bounds.Max.Y-1).RGBA()
 		color := Color{
 			R: r,
@@ -106,7 +106,7 @@ func Segment(img *image.YCbCr) image.Image {
 		sides := index[color]
 		sides[2] = true
 		index[color] = sides
-	}
+	}*/
 	for i := 0; i < bounds.Max.Y/2; i++ {
 		r, g, b, a := result.At(0, i).RGBA()
 		color := Color{
