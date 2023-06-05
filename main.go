@@ -58,14 +58,100 @@ type Color struct {
 // Index is an index of colors to image sides
 type Index map[Color][4]bool
 
-func picture() {
-	webcamera := NewV4LCamera()
-	go webcamera.Start("/dev/video0")
-	var wc, seg []*image.Paletted
+func Segment(img *image.YCbCr) image.Image {
 	// 0 to 1
 	sigma := .8
 	graphType := graph.KINGSGRAPH
 	weightfn := segmentation.NNWeight
+	segmenter := segmentation.New(img, graphType, weightfn)
+	segmenter.SetRandomColors(true)
+	// 0 to 15
+	minWeight := 5.0
+	segmenter.SegmentHMSF(sigma, minWeight)
+	result := segmenter.GetResultImage()
+
+	index, bounds := make(Index), result.Bounds()
+	for i := 0; i < bounds.Max.X; i++ {
+		r, g, b, a := result.At(i, 0).RGBA()
+		color := Color{
+			R: r,
+			G: g,
+			B: b,
+			A: a,
+		}
+		sides := index[color]
+		sides[0] = true
+		index[color] = sides
+	}
+	for i := 0; i < bounds.Max.Y/2; i++ {
+		r, g, b, a := result.At(bounds.Max.X-1, i).RGBA()
+		color := Color{
+			R: r,
+			G: g,
+			B: b,
+			A: a,
+		}
+		sides := index[color]
+		sides[1] = true
+		index[color] = sides
+	}
+	{
+		r, g, b, a := result.At(bounds.Max.X/2, bounds.Max.Y-1).RGBA()
+		color := Color{
+			R: r,
+			G: g,
+			B: b,
+			A: a,
+		}
+		sides := index[color]
+		sides[2] = true
+		index[color] = sides
+	}
+	for i := 0; i < bounds.Max.Y/2; i++ {
+		r, g, b, a := result.At(0, i).RGBA()
+		color := Color{
+			R: r,
+			G: g,
+			B: b,
+			A: a,
+		}
+		sides := index[color]
+		sides[3] = true
+		index[color] = sides
+	}
+
+	cp := image.NewRGBA(img.Bounds())
+	draw.Draw(cp, cp.Bounds(), img, img.Bounds().Min, draw.Src)
+	for i := 0; i < bounds.Max.X; i++ {
+		for j := 0; j < bounds.Max.Y; j++ {
+			r, g, b, a := result.At(i, j).RGBA()
+			c := Color{
+				R: r,
+				G: g,
+				B: b,
+				A: a,
+			}
+			sides := index[c]
+			del := false
+			for k := 0; k < len(sides); k++ {
+				if sides[k] {
+					del = true
+					break
+				}
+			}
+			if del {
+				cp.SetRGBA(i, j, color.RGBA{})
+			}
+		}
+	}
+
+	return cp
+}
+
+func picture() {
+	webcamera := NewV4LCamera()
+	go webcamera.Start("/dev/video0")
+	var wc, seg []*image.Paletted
 	for j := 0; j < 32; j++ {
 		img := <-webcamera.Images
 
@@ -80,88 +166,7 @@ func picture() {
 		}
 		opts.Drawer.Draw(paletted, bounds, img.Frame, image.Point{})
 		wc = append(wc, paletted)
-
-		segmenter := segmentation.New(img.Frame, graphType, weightfn)
-		segmenter.SetRandomColors(true)
-		// 0 to 15
-		minWeight := 5.0
-		segmenter.SegmentHMSF(sigma, minWeight)
-		result := segmenter.GetResultImage()
-
-		index, bounds := make(Index), result.Bounds()
-		for i := 0; i < bounds.Max.X; i++ {
-			r, g, b, a := result.At(i, 0).RGBA()
-			color := Color{
-				R: r,
-				G: g,
-				B: b,
-				A: a,
-			}
-			sides := index[color]
-			sides[0] = true
-			index[color] = sides
-		}
-		for i := 0; i < bounds.Max.Y; i++ {
-			r, g, b, a := result.At(bounds.Max.X-1, i).RGBA()
-			color := Color{
-				R: r,
-				G: g,
-				B: b,
-				A: a,
-			}
-			sides := index[color]
-			sides[1] = true
-			index[color] = sides
-		}
-		for i := 0; i < bounds.Max.X; i++ {
-			r, g, b, a := result.At(i, bounds.Max.Y-1).RGBA()
-			color := Color{
-				R: r,
-				G: g,
-				B: b,
-				A: a,
-			}
-			sides := index[color]
-			sides[2] = true
-			index[color] = sides
-		}
-		for i := 0; i < bounds.Max.Y; i++ {
-			r, g, b, a := result.At(0, i).RGBA()
-			color := Color{
-				R: r,
-				G: g,
-				B: b,
-				A: a,
-			}
-			sides := index[color]
-			sides[3] = true
-			index[color] = sides
-		}
-
-		cp := image.NewRGBA(img.Frame.Bounds())
-		draw.Draw(cp, cp.Bounds(), img.Frame, img.Frame.Bounds().Min, draw.Src)
-		for i := 0; i < bounds.Max.X; i++ {
-			for j := 0; j < bounds.Max.Y; j++ {
-				r, g, b, a := result.At(i, j).RGBA()
-				c := Color{
-					R: r,
-					G: g,
-					B: b,
-					A: a,
-				}
-				sides := index[c]
-				del := false
-				for k := 0; k < len(sides); k++ {
-					if sides[k] && sides[(k+1)%len(sides)] {
-						del = true
-						break
-					}
-				}
-				if del {
-					cp.SetRGBA(i, j, color.RGBA{})
-				}
-			}
-		}
+		cp := Segment(img.Frame)
 		opts = gif.Options{
 			NumColors: 256,
 			Drawer:    draw.FloydSteinberg,

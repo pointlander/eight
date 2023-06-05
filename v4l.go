@@ -133,7 +133,7 @@ func (vc *V4LCamera) Start(device string) {
 				cp = make([]byte, len(frame))
 			}
 			copy(cp, frame)
-			fmt.Printf("Frame: %d bytes\n", len(cp))
+			//fmt.Printf("Frame: %d bytes\n", len(cp))
 			yuyv := image.NewYCbCr(image.Rect(0, 0, int(w), int(h)), image.YCbCrSubsampleRatio422)
 			for i := range yuyv.Cb {
 				ii := i * 4
@@ -143,7 +143,7 @@ func (vc *V4LCamera) Start(device string) {
 				yuyv.Cr[i] = cp[ii+3]
 
 			}
-			tiny := resize.Resize(Width, Height, yuyv, resize.Lanczos3)
+			tiny := resize.Resize(Width, Height, Segment(yuyv), resize.Lanczos3)
 			b := tiny.Bounds()
 			gray := image.NewGray(b)
 			for y := 0; y < b.Max.Y; y++ {
@@ -177,7 +177,7 @@ func (vc *V4LCamera) Start(device string) {
 				DCT:   out,
 			}:
 			default:
-				fmt.Println("drop", device)
+				//fmt.Println("drop", device)
 			}
 		}
 	}
