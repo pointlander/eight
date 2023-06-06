@@ -10,7 +10,6 @@ import (
 	"image/color"
 	"runtime"
 	"sort"
-	"time"
 
 	"github.com/blackjack/webcam"
 	"github.com/mjibson/go-dsp/fft"
@@ -55,7 +54,6 @@ func NewV4LCamera() *V4LCamera {
 func (vc *V4LCamera) Start(device string) {
 	runtime.LockOSThread()
 	skip := 0
-	fmt.Println(device)
 	camera, err := webcam.Open(device)
 	if err != nil {
 		panic(err)
@@ -98,14 +96,13 @@ func (vc *V4LCamera) Start(device string) {
 	defer camera.StopStreaming()
 
 	var cp []byte
-	start, count := time.Now(), 0.0
+	count := 0.0
 	for vc.Stream {
 		err := camera.WaitForFrame(5)
 
 		switch err.(type) {
 		case nil:
 		case *webcam.Timeout:
-			fmt.Println(device, err)
 			continue
 		default:
 			panic(err)
@@ -113,14 +110,9 @@ func (vc *V4LCamera) Start(device string) {
 
 		frame, err := camera.ReadFrame()
 		if err != nil {
-			fmt.Println(device, err)
 			continue
-		} else {
-			fmt.Println(device)
 		}
 		count++
-
-		fmt.Println(device, count/float64(time.Since(start).Seconds()))
 
 		if skip < 20 {
 			skip++
@@ -181,7 +173,7 @@ func (vc *V4LCamera) Start(device string) {
 				DCT:   out,
 			}:
 			default:
-				//fmt.Println("drop", device)
+				// frame drop
 			}
 		}
 	}

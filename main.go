@@ -150,7 +150,7 @@ func Segment(img *image.YCbCr) image.Image {
 
 func picture() {
 	webcamera := NewV4LCamera()
-	go webcamera.Start("/dev/video0")
+	go webcamera.Start(*FlagDevice)
 	var wc, seg []*image.Paletted
 	for j := 0; j < 32; j++ {
 		img := <-webcamera.Images
@@ -181,7 +181,6 @@ func picture() {
 			opts.Drawer.Draw(paletted, bounds, cp, image.Point{})
 			seg = append(seg, paletted)
 		}
-		fmt.Println("left", j)
 	}
 	webcamera.Stream = false
 	process := func(name string, images []*image.Paletted) {
@@ -202,6 +201,8 @@ func picture() {
 }
 
 var (
+	// FlagDevice is the video for linux device to use
+	FlagDevice = flag.String("device", "/dev/video0", "video for linux device")
 	// FlagLearn a point
 	FlagLearn = flag.String("learn", "", "learn a point")
 	// FlagInfer
@@ -233,7 +234,7 @@ func main() {
 		}
 		input.Close()
 		webcamera := NewV4LCamera()
-		go webcamera.Start("/dev/video0")
+		go webcamera.Start(*FlagDevice)
 		image := <-webcamera.Images
 		webcamera.Stream = false
 		values, index := make([]complex128, EmbeddingHeight*EmbeddingWidth), 0
@@ -275,7 +276,7 @@ func main() {
 		defer input.Close()
 
 		webcamera := NewV4LCamera()
-		go webcamera.Start("/dev/video0")
+		go webcamera.Start(*FlagDevice)
 		for {
 			image := <-webcamera.Images
 			vector, index := make([]complex128, EmbeddingHeight*EmbeddingWidth), 0
@@ -300,13 +301,13 @@ func main() {
 					}
 				}
 			}
-			fmt.Printf("\t\t\t\t\t %s %f", name, min)
+			fmt.Printf("%s %f", name, min)
 
 			entry := points[name]
 			if length := len(entry.Points); length > 2 {
 				width := EmbeddingHeight * EmbeddingWidth
 				length += 1
-				data := make([]float64, length*width)
+				data := make([]float64, 0, length*width)
 				for _, points := range entry.Points {
 					for _, point := range points {
 						data = append(data, cmplx.Phase(point))
@@ -327,7 +328,7 @@ func main() {
 				pc.VectorsTo(&vec)
 				proj.Mul(ranks, vec.Slice(0, width, 0, k))
 
-				fmt.Printf("%f %f\n", proj.At(length-1, 0), proj.At(length-1, 1))
+				fmt.Printf(" %f %f\n", proj.At(length-1, 0), proj.At(length-1, 1))
 			}
 		}
 	}
