@@ -30,9 +30,9 @@ const (
 	// Height is the height of the fft
 	Height = 24
 	// EmbeddingWidth is the width of the embedding
-	EmbeddingWidth = 24
+	EmbeddingWidth = 8
 	// EmbeddingHeight is the height of the embedding
-	EmbeddingHeight = 24
+	EmbeddingHeight = 8
 )
 
 // Frame is a video frame
