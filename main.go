@@ -166,18 +166,21 @@ func picture() {
 		}
 		opts.Drawer.Draw(paletted, bounds, img.Frame, image.Point{})
 		wc = append(wc, paletted)
-		cp := Segment(img.Frame)
-		opts = gif.Options{
-			NumColors: 256,
-			Drawer:    draw.FloydSteinberg,
+
+		if *FlagSegmentation {
+			cp := Segment(img.Frame)
+			opts = gif.Options{
+				NumColors: 256,
+				Drawer:    draw.FloydSteinberg,
+			}
+			bounds = cp.Bounds()
+			paletted = image.NewPaletted(bounds, palette.Plan9[:opts.NumColors])
+			if opts.Quantizer != nil {
+				paletted.Palette = opts.Quantizer.Quantize(make(color.Palette, 0, opts.NumColors), cp)
+			}
+			opts.Drawer.Draw(paletted, bounds, cp, image.Point{})
+			seg = append(seg, paletted)
 		}
-		bounds = cp.Bounds()
-		paletted = image.NewPaletted(bounds, palette.Plan9[:opts.NumColors])
-		if opts.Quantizer != nil {
-			paletted.Palette = opts.Quantizer.Quantize(make(color.Palette, 0, opts.NumColors), cp)
-		}
-		opts.Drawer.Draw(paletted, bounds, cp, image.Point{})
-		seg = append(seg, paletted)
 		fmt.Println("left", j)
 	}
 	webcamera.Stream = false
@@ -193,7 +196,9 @@ func picture() {
 		gif.EncodeAll(f, animation)
 	}
 	process("webcamera.gif", wc)
-	process("segmented.gif", seg)
+	if *FlagSegmentation {
+		process("segmented.gif", seg)
+	}
 }
 
 var (
@@ -203,6 +208,8 @@ var (
 	FlagInfer = flag.Bool("infer", false, "inference mode")
 	// FlagPicture take a picture
 	FlagPicture = flag.Bool("picture", false, "take a picture")
+	// FlagSegmentation segmentation is enabled for background removal
+	FlagSegmentation = flag.Bool("segmentation", false, "segmentation is enabled for background removal")
 )
 
 func main() {

@@ -47,7 +47,7 @@ type V4LCamera struct {
 func NewV4LCamera() *V4LCamera {
 	return &V4LCamera{
 		Stream: true,
-		Images: make(chan Frame, 8),
+		Images: make(chan Frame, 1),
 	}
 }
 
@@ -143,7 +143,11 @@ func (vc *V4LCamera) Start(device string) {
 				yuyv.Cr[i] = cp[ii+3]
 
 			}
-			tiny := resize.Resize(Width, Height, Segment(yuyv), resize.Lanczos3)
+			segmented := image.Image(yuyv)
+			if *FlagSegmentation {
+				segmented = Segment(yuyv)
+			}
+			tiny := resize.Resize(Width, Height, segmented, resize.Lanczos3)
 			b := tiny.Bounds()
 			gray := image.NewGray(b)
 			for y := 0; y < b.Max.Y; y++ {
