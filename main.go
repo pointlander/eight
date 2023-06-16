@@ -277,6 +277,9 @@ func main() {
 
 		webcamera := NewV4LCamera()
 		go webcamera.Start(*FlagDevice)
+		last := ""
+		x, y := 0.0, 0.0
+		lastX, lastY := 0.0, 0.0
 		for {
 			image := <-webcamera.Images
 			vector, index := make([]complex128, EmbeddingHeight*EmbeddingWidth), 0
@@ -302,7 +305,9 @@ func main() {
 				}
 			}
 			fmt.Printf("%s %f", name, min)
-
+			if last != name {
+				x, y = 0, 0
+			}
 			entry := points[name]
 			if length := len(entry.Points); length > 2 {
 				width := EmbeddingHeight * EmbeddingWidth
@@ -327,9 +332,17 @@ func main() {
 				var vec mat.Dense
 				pc.VectorsTo(&vec)
 				proj.Mul(ranks, vec.Slice(0, width, 0, k))
-
-				fmt.Printf(" %f %f\n", proj.At(length-1, 0), proj.At(length-1, 1))
+				if last != name {
+					lastX, lastY = proj.At(length-1, 0), proj.At(length-1, 1)
+					x, y = lastX, lastY
+				} else {
+					x += proj.At(length-1, 0) - lastX
+					y += proj.At(length-1, 1) - lastY
+					lastX, lastY = proj.At(length-1, 0), proj.At(length-1, 1)
+				}
+				fmt.Printf(" %f %f\n", x, y)
 			}
+			last = name
 		}
 	}
 }
